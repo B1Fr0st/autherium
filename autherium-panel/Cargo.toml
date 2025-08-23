@@ -1,0 +1,8 @@
+[package]
+name = "autherium-panel"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+eframe = "0.32.1"
+autherium-rs = {path = "../autherium-rs"}
