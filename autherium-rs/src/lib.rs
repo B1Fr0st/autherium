@@ -69,7 +69,6 @@ impl Autherium {
         use machineid_rs::{IdBuilder, Encryption, HWIDComponent};
         Ok(IdBuilder::new(Encryption::SHA256)
             .add_component(HWIDComponent::SystemID)
-            .add_component(HWIDComponent::DriveSerial)
             .add_component(HWIDComponent::CPUCores)
             .add_component(HWIDComponent::CPUID)
             .build("Autherium")?)
