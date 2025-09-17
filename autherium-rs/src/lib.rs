@@ -6,6 +6,8 @@ pub struct Autherium {
     license_regex: Regex,
 }
 
+use std::sync::{atomic::AtomicI64, Arc};
+
 use serde::{Deserialize, Serialize};
 use regex::Regex;
 
@@ -42,13 +44,14 @@ enum CreateResponse {
     Error { error: String },
 }
 
-pub fn register_callback(instance:Autherium,license: String){
+pub fn register_callback(instance:Autherium,license: String,callback_target: Option<Arc<AtomicI64>>){
     std::thread::spawn(move||{
         loop {
             match instance.authenticate(&license) {
-                Ok(_) => {},
-                Err(_) => std::process::exit(0),
+                Ok(AuthResponse::Success {license_duration: _,license_start: _,time_remaining }) => {if let Some(ref targ) = callback_target {targ.store(time_remaining, std::sync::atomic::Ordering::Relaxed)}},
+                _ => std::process::exit(0),
             }
+            std::thread::sleep(std::time::Duration::from_secs(30));
         }
     });
 }

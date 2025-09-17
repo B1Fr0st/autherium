@@ -1,10 +1,10 @@
-use std::thread::JoinHandle;
+use std::{sync::{atomic::AtomicI64, Arc}, thread::JoinHandle};
 
 use autherium_rs::Autherium;
 
 
 
-pub fn start(){
+pub fn start(callback_target: Option<Arc<AtomicI64>>){
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_inner_size([520.0, 240.0])
@@ -32,7 +32,7 @@ pub fn start(){
     ).unwrap();
 
     let license = std::fs::read_to_string("license.txt").unwrap_or_else(|_| "License file not found.".to_string());
-    autherium_rs::register_callback(Autherium::new("http://localhost:8080","app_id").unwrap(), license);
+    autherium_rs::register_callback(Autherium::new("http://localhost:8080","app_id").unwrap(), license, callback_target);
 }
 
 pub fn error(e:&str){

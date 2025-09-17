@@ -241,7 +241,6 @@ impl eframe::App for MyApp {
                         ((time_remaining / 60.0 / 60.0)%24.0).floor(),
                         ((time_remaining / 60.0 )%60.0).floor(),
                     ));
-                    dbg!((time_remaining / 60.0)%60.0);
                     ui.add(egui::widgets::ProgressBar::new(time_remaining / self.license_timing.1 as f32 )
                     .text(RichText::new(format!("Time remaining: {} days {} hours {} minutes",
                         (time_remaining / 60.0 / 60.0 / 24.0).floor(),
