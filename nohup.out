@@ -50,3 +50,39 @@ Error: Os { code: 48, kind: AddrInUse, message: "Address already in use" }
 ]
 [autherium-server/src/main.rs:217:5] &req.hwid = "f8626cb9a882275e69abb44f7ff5115aa8902d3a7cc657ca0454f8fafbb454eb"
 [autherium-server/src/main.rs:221:5] &banned_hwids = []
+[autherium-server/src/main.rs:139:5] &req = Json(
+    AuthRequest {
+        license: "DULAEONABBQH4INS",
+        hwid: "f8626cb9a882275e69abb44f7ff5115aa8902d3a7cc657ca0454f8fafbb454eb",
+    },
+)
+[autherium-server/src/main.rs:139:5] &req = Json(
+    AuthRequest {
+        license: "DULAEONABBQH4INS",
+        hwid: "f8626cb9a882275e69abb44f7ff5115aa8902d3a7cc657ca0454f8fafbb454eb",
+    },
+)
+[autherium-server/src/main.rs:139:5] &req = Json(
+    AuthRequest {
+        license: "DULAEONABBQH4INS",
+        hwid: "f8626cb9a882275e69abb44f7ff5115aa8902d3a7cc657ca0454f8fafbb454eb",
+    },
+)
+[autherium-server/src/main.rs:139:5] &req = Json(
+    AuthRequest {
+        license: "DULAEONABBQH4INS",
+        hwid: "f8626cb9a882275e69abb44f7ff5115aa8902d3a7cc657ca0454f8fafbb454eb",
+    },
+)
+[autherium-server/src/main.rs:139:5] &req = Json(
+    AuthRequest {
+        license: "DULAEONABBQH4INS",
+        hwid: "f8626cb9a882275e69abb44f7ff5115aa8902d3a7cc657ca0454f8fafbb454eb",
+    },
+)
+[autherium-server/src/main.rs:139:5] &req = Json(
+    AuthRequest {
+        license: "DULAEONABBQH4INS",
+        hwid: "f8626cb9a882275e69abb44f7ff5115aa8902d3a7cc657ca0454f8fafbb454eb",
+    },
+)

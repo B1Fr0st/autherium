@@ -1,7 +1,8 @@
 use regex::Regex;
-use std::sync::mpsc;
+use std::{sync::mpsc, time};
 use std::thread;
 use crate::loader::app::*;
+use autherium_rs::AuthResponse;
 
 use serde::{Deserialize, Serialize};
 
@@ -10,19 +11,6 @@ struct AuthRequest {
     license: String,
     hwid: String,
     app_id: String,
-}
-
-#[derive(Deserialize,Clone, Debug)]
-#[serde(untagged)]
-enum AuthResponse {
-    Success{
-        license_start: u64,
-        license_duration: u64,
-        time_remaining: i64
-    },
-    Error{
-        error: String
-    },
 }
 
 impl crate::loader::app::MyApp {
@@ -41,9 +29,17 @@ impl crate::loader::app::MyApp {
             let autherium = autherium_rs::Autherium::new("http://localhost:8080","app_id").unwrap();
 
             match autherium.authenticate(&license){
-                Ok(_) => {
-                    tx.send(LicenseResult::Success).unwrap();
-                    return;
+                Ok(response) => {
+                    match response {
+                        AuthResponse::Success { license_start, license_duration, time_remaining } => {
+                            tx.send(LicenseResult::Success(license_start, license_duration));
+                            return;
+                        },
+                        AuthResponse::Error { error } =>{
+                            tx.send(LicenseResult::Error(error.to_string())).unwrap();
+                            return;
+                        }
+                    }
                 },
                 Err(e) => {
                     tx.send(LicenseResult::Error(e.to_string())).unwrap();
@@ -60,13 +56,14 @@ impl crate::loader::app::MyApp {
                     self.license_receiver = None;
                     
                     match result {
-                        LicenseResult::Success => {
+                        LicenseResult::Success(license_start,license_duration) => {
                             self.ui_state = UiState::Verified;
+                            self.license_timing = (license_start, license_duration);
                         }
                         LicenseResult::Error(error) => {
                             self.failed_reason = error;
                             self.license = String::new();
-                            self.ui_state = UiState::Error;
+                            self.ui_state = UiState::LicenseInput;
                         }
                     }
                 }

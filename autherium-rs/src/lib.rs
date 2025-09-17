@@ -9,14 +9,14 @@ pub struct Autherium {
 use serde::{Deserialize, Serialize};
 use regex::Regex;
 
-#[derive(Serialize)]
+#[derive(Serialize,Deserialize,Debug,Clone)]
 pub struct AuthRequest {
     license: String,
     hwid: String,
     app_id: String,
 }
 
-#[derive(Deserialize,Clone, Debug)]
+#[derive(Serialize,Deserialize,Debug,Clone)]
 #[serde(untagged)]
 pub enum AuthResponse {
     Success{
@@ -40,6 +40,17 @@ struct CreateRequest {
 enum CreateResponse {
     License { license: String },
     Error { error: String },
+}
+
+pub fn register_callback(instance:Autherium,license: String){
+    std::thread::spawn(move||{
+        loop {
+            match instance.authenticate(&license) {
+                Ok(_) => {},
+                Err(_) => std::process::exit(0),
+            }
+        }
+    });
 }
 
 impl Autherium {

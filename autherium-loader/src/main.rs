@@ -1,5 +1,7 @@
 pub mod loader;
 fn main() {
     crate::loader::start::start();
-    println!("app verified");
+    loop{
+        print!("appverified!!!!");
+    }
 }

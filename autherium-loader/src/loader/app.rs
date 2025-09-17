@@ -10,6 +10,7 @@ pub(crate) struct MyApp {
     pub load: bool,
     pub license: String,
     pub failed_reason: String,
+    pub license_timing: (u64,u64),
     // Channel for async license verification
     pub license_receiver: Option<mpsc::Receiver<LicenseResult>>,
     pub autherium_url: String,
@@ -26,7 +27,7 @@ pub enum UiState{
 // Result type for license verification
 #[derive(Debug, Clone)]
 pub enum LicenseResult {
-    Success,
+    Success(u64,u64),
     Error(String),
 }
 
@@ -156,14 +157,11 @@ impl eframe::App for MyApp {
                 },
                 UiState::LicenseInput => {
                     ctx.style_mut(|s|{*s = Style::default()});
-                    // if ui.button("ban_me").clicked(){
-                    //     let autherium = autherium_rs::Autherium::new("http://localhost:8080","app_id").unwrap();
-                    //     autherium.ban_hwid(&autherium_rs::Autherium::get_hwid().unwrap(), &format!("super_secret_key"));
-                    // }
-                    // if ui.button("unban_me").clicked(){
-                    //     let autherium = autherium_rs::Autherium::new("http://localhost:8080","app_id").unwrap();
-                    //     autherium.unban_hwid(&autherium_rs::Autherium::get_hwid().unwrap(), &format!("super_secret_key"));
-                    // }
+                    if self.failed_reason.is_empty(){
+                        if let Ok(license) = std::fs::read_to_string("license.txt"){
+                            self.license = license;
+                        }
+                    }
                     ui.horizontal(|ui| {
                         ui.add_space(475.0);
                         let exit = ui.add_sized([25.0,25.0],ImageButton::new(include_image!("../../assets/exit.png")).frame(false));
@@ -225,12 +223,35 @@ impl eframe::App for MyApp {
                     ctx.style_mut(|s|{*s = Style::default()});
                     if ui.button("Load").clicked() {
                         self.load = true;
+                        if let Err(e) = std::fs::write("license.txt", &self.license) {
+                            eprintln!("Failed to write license.txt: {}", e);
+                        }
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                     if ui.button("Exit").clicked() {
                         self.load = false;
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     }
+                    let time_remaining = (((self.license_timing.0 + self.license_timing.1) as i64 - std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs() as i64) as f32).max(0.0);
+                    ui.label(format!("Time remaining: {} days {} hours {} minutes",
+                        (time_remaining / 60.0 / 60.0 / 24.0).floor(),
+                        ((time_remaining / 60.0 / 60.0)%24.0).floor(),
+                        ((time_remaining / 60.0 )%60.0).floor(),
+                    ));
+                    dbg!((time_remaining / 60.0)%60.0);
+                    ui.add(egui::widgets::ProgressBar::new(time_remaining / self.license_timing.1 as f32 )
+                    .text(RichText::new(format!("Time remaining: {} days {} hours {} minutes",
+                        (time_remaining / 60.0 / 60.0 / 24.0).floor(),
+                        ((time_remaining / 60.0 / 60.0)%24.0).floor(),
+                        ((time_remaining / 60.0 )%60.0).floor(),
+                    )).color(Color32::BLACK))
+                    .corner_radius(0.0)
+                    .fill(Color32::WHITE)
+                );
+                    ctx.request_repaint();
                 },
                 UiState::Error => {
                     ctx.style_mut(|s|{*s = Style::default()});
