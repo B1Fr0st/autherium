@@ -1,4 +1,4 @@
-use eframe::egui::{self, include_image, vec2, Color32, ImageButton, Pos2, Rect, RichText, Stroke, Style};
+use eframe::{egui::{self, include_image, vec2, Color32, ImageButton, Pos2, Rect, RichText, Stroke, Style}, Frame};
 use core::f32;
 use std::sync::mpsc;
 
@@ -110,7 +110,7 @@ impl eframe::App for MyApp {
         
         
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().frame(egui::Frame::new().corner_radius(5.0)).show(ctx, |ui| {
             let painter = ui.painter();
 
             let mut bg_circles: Vec<(Pos2, f32)> = Vec::new();

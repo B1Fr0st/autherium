@@ -667,6 +667,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "autherium-testing"
+version = "0.1.0"
+dependencies = [
+ "autherium-rs",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

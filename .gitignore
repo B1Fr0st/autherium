@@ -1,1 +1,5 @@
 /target
+
+banned_hwids.json
+expired_licenses.json
+licenses.json

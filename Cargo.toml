@@ -1,3 +1,3 @@
 [workspace]
 resolver="3"
-members = [ "autherium-loader", "autherium-panel","autherium-rs", "autherium-server"]
+members = [ "autherium-loader", "autherium-panel","autherium-rs", "autherium-server", "autherium-testing"]

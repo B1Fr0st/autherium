@@ -2,6 +2,7 @@ use eframe::egui;
 #[derive(Default)]
 struct MyApp{
     autherium_url: String,
+    days: String,
     alert: String,
 }
 
@@ -22,13 +23,21 @@ impl eframe::App for MyApp {
                     Err(e) => self.alert = format!("Error: {}", e),
                 }
             }
-            if ui.button("create license").clicked() {
-                let autherium = autherium_rs::Autherium::new(&self.autherium_url.clone(),"app_id").unwrap();
-                match autherium.create_license(1,&"super_secret_key".to_string()) {
-                    Ok(license) => self.alert = format!("License: {}", license),
-                    Err(e) => self.alert = format!("Error: {}", e),
+            ui.horizontal(|ui|{
+                ui.text_edit_singleline(&mut self.days);
+                if ui.button("create license").clicked() {
+                    if self.days.parse::<u32>().is_err() {
+                        self.alert = "days must be a number".into();
+                        return;
+                    }
+                    let days = self.days.parse::<u32>().unwrap();
+                    let autherium = autherium_rs::Autherium::new(&self.autherium_url.clone(),"app_id").unwrap();
+                    match autherium.create_license(days as u64,&"super_secret_key".to_string()) {
+                        Ok(license) => self.alert = format!("{} day(s) license: {}", days, license),
+                        Err(e) => self.alert = format!("Error: {}", e),
+                    }
                 }
-            }
+            });
             ui.label(format!("{}", self.alert));
         });
     }

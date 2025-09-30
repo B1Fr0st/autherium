@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  autherium-server:
+    image: autherium-server:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    environment:
+      - API_KEY=super_secret_key

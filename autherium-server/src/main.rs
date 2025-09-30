@@ -1,10 +1,18 @@
 use std::{sync::Mutex, fs, path::Path};
 use actix_web::{error, post, web, App, HttpResponse, HttpServer, Responder, Result};
-use serde_derive::{Serialize, Deserialize};
+use regex::Regex;
+
 use rand::{distr::Alphanumeric, Rng};
 
-const LICENSES_FILE: &str = "licenses.json";
-const BANNED_HWIDS_FILE: &str = "banned_hwids.json";
+mod types;
+use types::*;
+
+const LICENSES_FILE: std::sync::LazyLock<String> = std::sync::LazyLock::new(||{std::env::var("LICENSES_FILE").unwrap_or_else(|_| "licenses.json".to_string())});
+const BANNED_HWIDS_FILE: std::sync::LazyLock<String> = std::sync::LazyLock::new(||{std::env::var("BANNED_HWIDS_FILE").unwrap_or_else(|_| "banned_hwids.json".to_string())});
+const ARCHIVE_FILE: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| std::env::var("ARCHIVE_FILE").unwrap_or_else(|_| "expired_licenses.json".to_string()));
+const LICENSE_REGEX: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(||{regex::Regex::new(r"^[A-Z0-9]{16}").unwrap()});
+const API_KEY: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| std::env::var("API_KEY").unwrap());
+const LICENSE_REGEN_LIMIT: u32 = 100;
 
 struct State {
     pub licenses: Mutex<Vec<License>>,
@@ -23,19 +31,42 @@ impl State {
     }
 
     fn load_licenses() -> Result<Vec<License>, Box<dyn std::error::Error>> {
-        if !Path::new(LICENSES_FILE).exists() {
+        if !Path::new(LICENSES_FILE.as_str()).exists() {
             return Ok(Vec::new());
         }
-        let data = fs::read_to_string(LICENSES_FILE)?;
+        let data = fs::read_to_string(LICENSES_FILE.as_str())?;
         let licenses: Vec<License> = serde_json::from_str(&data)?;
+        // add expired licenses to an archive file
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let (expired, active): (Vec<License>, Vec<License>) = licenses.into_iter().partition(|license| {
+            license.used && (license.start + license.duration) <= now
+        });
+        if !expired.is_empty() {
+            let mut archive = if Path::new(&ARCHIVE_FILE.as_str()).exists() {
+                let archive_data = fs::read_to_string(ARCHIVE_FILE.as_str())?;
+                serde_json::from_str::<Vec<License>>(&archive_data)?
+            } else {
+                Vec::new()
+            };
+            archive.extend(expired);
+            let archive_data = serde_json::to_string_pretty(&archive)?;
+            fs::write(ARCHIVE_FILE.as_str(), archive_data)?;
+        }
+        let licenses = active;
+        // Save the active licenses back to the licenses file
+        let data = serde_json::to_string_pretty(&licenses)?;
+        fs::write(LICENSES_FILE.as_str(), data)?;
         Ok(licenses)
     }
 
     fn load_banned_hwids() -> Result<Vec<String>, Box<dyn std::error::Error>> {
-        if !Path::new(BANNED_HWIDS_FILE).exists() {
+        if !Path::new(&BANNED_HWIDS_FILE.as_str()).exists() {
             return Ok(Vec::new());
         }
-        let data = fs::read_to_string(BANNED_HWIDS_FILE)?;
+        let data = fs::read_to_string(&BANNED_HWIDS_FILE.as_str())?;
         let banned_hwids: Vec<String> = serde_json::from_str(&data)?;
         Ok(banned_hwids)
     }
@@ -43,96 +74,35 @@ impl State {
     pub fn save_licenses(&self) -> Result<(), Box<dyn std::error::Error>> {
         let licenses = self.licenses.lock().unwrap();
         let data = serde_json::to_string_pretty(&*licenses)?;
-        fs::write(LICENSES_FILE, data)?;
+        fs::write(&LICENSES_FILE.as_str(), data)?;
         Ok(())
     }
 
     pub fn save_banned_hwids(&self) -> Result<(), Box<dyn std::error::Error>> {
         let banned_hwids = self.banned_hwids.lock().unwrap();
         let data = serde_json::to_string_pretty(&*banned_hwids)?;
-        fs::write(BANNED_HWIDS_FILE, data)?;
+        fs::write(BANNED_HWIDS_FILE.as_str(), data)?;
         Ok(())
     }
-}
 
-#[derive(Deserialize, Debug)]
-struct AuthRequest {
-    license: String,
-    hwid: String,
-}
-
-#[derive(Serialize, Default)]
-struct AuthResponse {
-    license_start: u64,
-    license_duration: u64,
-    time_remaining: i64,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-struct CreateRequest {
-    days: u64,
-    key: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct CreateResponse {
-    license: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct HwidRequest {
-    hwid: String,
-    key: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ErrorResponse {
-    error: String,
-}
-
-impl ErrorResponse {
-    pub fn new(error: &str) -> Self {
-        Self {
-            error: error.to_string(),
-        }
+    pub fn archive_license(&self, license: &License) {
+        let mut archive = if Path::new(ARCHIVE_FILE.as_str()).exists() {
+            let archive_data = fs::read_to_string(ARCHIVE_FILE.as_str()).unwrap_or_default();
+            serde_json::from_str::<Vec<License>>(&archive_data).unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+        archive.push(license.clone());
+        let archive_data = serde_json::to_string_pretty(&archive).unwrap_or_default();
+        fs::write(ARCHIVE_FILE.as_str(), archive_data).unwrap_or_default();
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-struct License {
-    pub key: String,
-    pub used: bool,
-    pub start: u64,
-    pub duration: u64,
-}
 
-impl License {
-    pub fn new(key: String) -> Self {
-        Self {
-            key,
-            used: false,
-            start: 0,
-            duration: 0,
-        }
-    }
-
-    pub fn set_days(&mut self, days: u64) -> Self {
-        self.duration = days * 24 * 60 * 60; // days * hours * minutes * seconds
-        self.clone()
-    }
-
-    pub fn start(&mut self) {
-        self.used = true;
-        self.start = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-    }
-}
 
 #[post("/create-license")]
 async fn create_license(req: web::Json<CreateRequest>, state: web::Data<State>) -> Result<impl Responder> {
-    if req.key != "super_secret_key" {
+    if req.key != API_KEY.as_str() {
         //fixme
         return Err(error::InternalError::from_response(
             "Invalid API key.",
@@ -150,12 +120,10 @@ async fn create_license(req: web::Json<CreateRequest>, state: web::Data<State>) 
     }
 
     let mut licenses = state.licenses.lock().unwrap();
-    //generate license with valid regex
-    let regex = regex::Regex::new(r"^[A-Z0-9]{16}").unwrap();
     let mut s;
     let mut regen_counter = 0;
     loop {
-        if regen_counter > 100 {
+        if regen_counter > LICENSE_REGEN_LIMIT {
             return Err(error::InternalError::from_response(
                 "Failed to generate a unique license key.",
                 HttpResponse::InternalServerError()
@@ -170,7 +138,7 @@ async fn create_license(req: web::Json<CreateRequest>, state: web::Data<State>) 
             .collect::<String>()
             .to_uppercase();
         assert!(
-            regex.is_match(&s),
+            LICENSE_REGEX.is_match(&s),
             "Generated license key does not match regex"
         );
         if licenses.iter().any(|license| license.key == s) {
@@ -180,8 +148,7 @@ async fn create_license(req: web::Json<CreateRequest>, state: web::Data<State>) 
             break;
         }
     }
-    let mut license = License::new(s.clone()).set_days(req.days);
-    license.duration = 60;
+    let license = License::new(s.clone()).set_days(req.days);
     licenses.push(license);
     
     // Save to file after modification
@@ -196,7 +163,6 @@ async fn create_license(req: web::Json<CreateRequest>, state: web::Data<State>) 
 #[post("/auth")]
 async fn auth(req: web::Json<AuthRequest>, state: web::Data<State>) -> Result<impl Responder> {
     dbg!(&req);
-    std::thread::sleep(std::time::Duration::from_millis(1000));
     
     if state
         .banned_hwids
@@ -209,9 +175,9 @@ async fn auth(req: web::Json<AuthRequest>, state: web::Data<State>) -> Result<im
         return Ok(HttpResponse::Unauthorized().json(ErrorResponse::new("Your HWID is banned.")));
     }
 
-    let regex = regex::Regex::new(r"^[A-Z0-9]{16}").unwrap();
+    
 
-    if !regex.is_match(&req.license) {
+    if !LICENSE_REGEX.is_match(&req.license) {
         return Err(error::InternalError::from_response(
             "Not a valid license.",
             HttpResponse::Unauthorized().json(ErrorResponse::new("Not a valid license.")),
@@ -233,6 +199,11 @@ async fn auth(req: web::Json<AuthRequest>, state: web::Data<State>) -> Result<im
                     .unwrap_or_default()
                     .as_secs() as i64;
             if time_remaining <= 0 {
+                //remove expired license from db to save on search time, add it to archive file
+                let key = license.key.clone(); //borrow checker
+                state.archive_license(&license);
+                licenses.retain(|l| l.key != key);
+                save_needed = true;
                 Err(error::InternalError::from_response(
                     "Your license has expired.",
                     HttpResponse::Unauthorized().json(ErrorResponse::new("Your license has expired.")),
@@ -266,7 +237,7 @@ async fn auth(req: web::Json<AuthRequest>, state: web::Data<State>) -> Result<im
 
 #[post("/ban-hwid")]
 async fn ban_hwid(req: web::Json<HwidRequest>, state: web::Data<State>) -> Result<impl Responder> {
-    if req.key != "super_secret_key" {
+    if req.key != API_KEY.as_str() {
         //fixme
         return Err(error::InternalError::from_response(
             "Invalid API key.",
@@ -292,7 +263,7 @@ async fn ban_hwid(req: web::Json<HwidRequest>, state: web::Data<State>) -> Resul
 
 #[post("/unban-hwid")]
 async fn unban_hwid(req: web::Json<HwidRequest>, state: web::Data<State>) -> Result<impl Responder> {
-    if req.key != "super_secret_key" {
+    if req.key != API_KEY.as_str() {
         //fixme
         return Err(error::InternalError::from_response(
             "Invalid API key.",
@@ -321,6 +292,11 @@ async fn unban_hwid(req: web::Json<HwidRequest>, state: web::Data<State>) -> Res
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    if let Err(e) = std::env::var("API_KEY") {
+        eprintln!("API_KEY environment variable is not set: {}", e);
+        eprintln!("Please set it before running the server.");
+        std::process::exit(1);
+    }
     let state = web::Data::new(State::new());
 
     HttpServer::new(move || {
@@ -344,7 +320,7 @@ async fn main() -> std::io::Result<()> {
                 .service(unban_hwid),
         )
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind(("0.0.0.0", 8080))?
     .run()
     .await
 }
