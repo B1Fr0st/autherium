@@ -1,4 +1,4 @@
-use eframe::{egui::{self, include_image, vec2, Color32, ImageButton, Pos2, Rect, RichText, Stroke, Style}, Frame};
+use eframe::egui::{self, include_image, vec2, Color32, ImageButton, Pos2, Rect, RichText, Stroke, Style};
 use core::f32;
 use std::sync::mpsc;
 
@@ -69,6 +69,9 @@ impl MyApp {
 
 
 impl eframe::App for MyApp {
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        egui::Rgba::TRANSPARENT.to_array() // Make sure we don't paint anything behind the rounded corners
+    }
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui_extras::install_image_loaders(ctx);
         // Check for async license verification result
@@ -110,43 +113,14 @@ impl eframe::App for MyApp {
         
         
 
-        egui::CentralPanel::default().frame(egui::Frame::new().corner_radius(5.0)).show(ctx, |ui| {
-            let painter = ui.painter();
-
-            let mut bg_circles: Vec<(Pos2, f32)> = Vec::new();
-            for i in 0..60 {
-                for j in 0..40 {
-                    bg_circles.push((Pos2::new(i as f32 * 10.0 + 5.0, j as f32 *10.0 + 5.0), 10.0));
-                }
-            }
-            if let Some(mouse_pos) = ctx.input(|i| i.pointer.latest_pos()) {
-                for (pos, radius) in bg_circles.iter_mut() {
-                    let dx = pos.x - mouse_pos.x;
-                    let dy = pos.y - mouse_pos.y;
-                    let distance = (dx * dx + dy * dy).sqrt();
-                    for i in 0..3{
-                        pos.x += dx / distance * 3.0;
-                        pos.y += dy / distance * 3.0;
-                        *radius = 10.0 * (3.0 / distance).min(0.3);
-                        match i {
-                            0 => {
-                                painter.circle_filled(*pos, *radius, Color32::BLUE.gamma_multiply(0.3));
-                            }
-                            1 => {
-                                painter.circle_filled(*pos, *radius, Color32::GREEN.gamma_multiply(0.3));
-                            }
-                            2 => {
-                                painter.circle_filled(*pos, *radius, Color32::RED.gamma_multiply(0.3));
-                            }
-                            _ => {unreachable!()}
-                        }
-                        
-                    }
-                    
-                }
-            }
-            
-
+        egui::CentralPanel::default()
+            .frame(
+                egui::Frame::new()
+                .fill(Color32::BLACK.lerp_to_gamma(Color32::from_rgba_unmultiplied(0, 0, 0, 125),0.5))
+                .corner_radius(15.0)
+                .stroke(egui::Stroke{width:1.0, color:Color32::BLACK})
+            )
+            .show(ctx, |ui| {
             match self.ui_state{
                 UiState::Verifying => {
                     ctx.style_mut(|s|{s.spacing.item_spacing = vec2(16.0, 64.0);s.spacing.indent=16.0;});
@@ -162,8 +136,9 @@ impl eframe::App for MyApp {
                             self.license = license;
                         }
                     }
+                    ui.add_space(10.0);
                     ui.horizontal(|ui| {
-                        ui.add_space(475.0);
+                        ui.add_space(480.0);
                         let exit = ui.add_sized([25.0,25.0],ImageButton::new(include_image!("../../assets/exit.png")).frame(false));
                         if exit.hovered() {
                             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);

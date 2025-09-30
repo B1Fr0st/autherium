@@ -11,7 +11,8 @@ pub fn start(callback_target: Option<Arc<AtomicI64>>){
             .with_decorations(false)
             .with_active(true)
             .with_taskbar(true)
-            .with_resizable(false),
+            .with_resizable(false)
+            .with_transparent(true),
         centered: true,
         ..Default::default()
     };
@@ -43,6 +44,7 @@ pub fn error(e:&str){
         .with_decorations(false)
         .with_active(true)
         .with_taskbar(true)
+        .with_transparent(true)
         ,//.with_icon(IconData::default()),
         centered: true,
         ..Default::default()
