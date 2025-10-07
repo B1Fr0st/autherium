@@ -201,11 +201,8 @@ impl eframe::App for MyApp {
                         if let Err(e) = std::fs::write("license.txt", &self.license) {
                             eprintln!("Failed to write license.txt: {}", e);
                         }
-                        let ctx = ui.ctx().clone();
-                        std::thread::spawn(move || {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                        });
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                     if ui.button("Exit").clicked() {
                         self.load = false;
