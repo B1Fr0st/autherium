@@ -7,11 +7,11 @@ use rand::{distr::Alphanumeric, Rng};
 mod types;
 use types::*;
 
-const LICENSES_FILE: std::sync::LazyLock<String> = std::sync::LazyLock::new(||{std::env::var("LICENSES_FILE").unwrap_or_else(|_| "licenses.json".to_string())});
-const BANNED_HWIDS_FILE: std::sync::LazyLock<String> = std::sync::LazyLock::new(||{std::env::var("BANNED_HWIDS_FILE").unwrap_or_else(|_| "banned_hwids.json".to_string())});
-const ARCHIVE_FILE: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| std::env::var("ARCHIVE_FILE").unwrap_or_else(|_| "expired_licenses.json".to_string()));
+const LICENSES_FILE: std::sync::LazyLock<String> = std::sync::LazyLock::new(||{std::env::var("LICENSES_FILE").unwrap_or_else(|_| "./config/licenses.json".to_string())});
+const BANNED_HWIDS_FILE: std::sync::LazyLock<String> = std::sync::LazyLock::new(||{std::env::var("BANNED_HWIDS_FILE").unwrap_or_else(|_| "./config/banned_hwids.json".to_string())});
+const ARCHIVE_FILE: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| std::env::var("ARCHIVE_FILE").unwrap_or_else(|_| "./config/expired_licenses.json".to_string()));
 const LICENSE_REGEX: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(||{regex::Regex::new(r"^[A-Z0-9]{16}").unwrap()});
-const API_KEY: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| std::env::var("API_KEY").unwrap());
+const API_KEY: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| std::env::var("API_KEY").unwrap_or_else(|_| "super_secret_key".to_string()));
 const LICENSE_REGEN_LIMIT: u32 = 100;
 
 struct State {
@@ -292,11 +292,11 @@ async fn unban_hwid(req: web::Json<HwidRequest>, state: web::Data<State>) -> Res
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    if let Err(e) = std::env::var("API_KEY") {
-        eprintln!("API_KEY environment variable is not set: {}", e);
-        eprintln!("Please set it before running the server.");
-        std::process::exit(1);
-    }
+    // if let Err(e) = std::env::var("API_KEY") {
+    //     eprintln!("API_KEY environment variable is not set: {}", e);
+    //     eprintln!("Please set it before running the server.");
+    //     std::process::exit(1);
+    // }
     let state = web::Data::new(State::new());
 
     HttpServer::new(move || {
