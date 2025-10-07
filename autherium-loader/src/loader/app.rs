@@ -202,7 +202,6 @@ impl eframe::App for MyApp {
                             eprintln!("Failed to write license.txt: {}", e);
                         }
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
                     }
                     if ui.button("Exit").clicked() {
                         self.load = false;
