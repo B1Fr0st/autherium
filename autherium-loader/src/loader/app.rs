@@ -203,6 +203,7 @@ impl eframe::App for MyApp {
                         }
                         let ctx = ui.ctx().clone();
                         std::thread::spawn(move || {
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                         });
                     }
