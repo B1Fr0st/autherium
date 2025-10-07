@@ -201,8 +201,8 @@ impl eframe::App for MyApp {
                         if let Err(e) = std::fs::write("license.txt", &self.license) {
                             eprintln!("Failed to write license.txt: {}", e);
                         }
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
                     }
                     if ui.button("Exit").clicked() {
                         self.load = false;
