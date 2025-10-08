@@ -1,8 +1,8 @@
-use regex::Regex;
-use std::{sync::mpsc, time};
-use std::thread;
 use crate::loader::app::*;
 use autherium_rs::AuthResponse;
+use regex::Regex;
+use std::thread;
+use std::{sync::mpsc, time};
 
 use serde::{Deserialize, Serialize};
 
@@ -16,47 +16,49 @@ struct AuthRequest {
 impl crate::loader::app::MyApp {
     pub fn verify_license_async(&mut self) {
         self.failed_reason = String::new();
-        
+
         // Create channel for communication
         let (tx, rx) = mpsc::channel();
         self.license_receiver = Some(rx);
-        
+
         let license = self.license.clone();
-        
+
         // Spawn background thread for license verification
         thread::spawn(move || {
-
-            let autherium = autherium_rs::Autherium::new("http://localhost:8080","app_id").unwrap();
-
-            match autherium.authenticate(&license){
-                Ok(response) => {
-                    match response {
-                        AuthResponse::Success { license_start, license_duration, time_remaining } => {
-                            tx.send(LicenseResult::Success(license_start, license_duration));
-                            return;
-                        },
-                        AuthResponse::Error { error } =>{
-                            tx.send(LicenseResult::Error(error.to_string())).unwrap();
-                            return;
-                        }
+            let autherium =
+                autherium_rs::Autherium::new("http://localhost:8080", "app_id").unwrap();
+            match autherium.authenticate(&license) {
+                Ok(response) => match response {
+                    AuthResponse::Success {
+                        license_start,
+                        license_duration,
+                        time_remaining,
+                    } => {
+                        tx.send(LicenseResult::Success(license_start, license_duration));
+                        return;
+                    }
+                    AuthResponse::Error { error } => {
+                        tx.send(LicenseResult::Error(error.to_string())).unwrap();
+                        return;
                     }
                 },
                 Err(e) => {
-                    tx.send(LicenseResult::Error(e.to_string())).unwrap();
+                    tx.send(LicenseResult::Error("Failed to authenticate!".to_string()))
+                        .unwrap();
                     return;
                 }
             }
         });
     }
-    
+
     pub fn check_license_result(&mut self) {
         if let Some(ref receiver) = self.license_receiver {
             match receiver.try_recv() {
                 Ok(result) => {
                     self.license_receiver = None;
-                    
+
                     match result {
-                        LicenseResult::Success(license_start,license_duration) => {
+                        LicenseResult::Success(license_start, license_duration) => {
                             self.ui_state = UiState::Verified;
                             self.license_timing = (license_start, license_duration);
                         }

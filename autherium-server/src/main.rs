@@ -1,17 +1,26 @@
-use std::{sync::Mutex, fs, path::Path};
-use actix_web::{error, post, web, App, HttpResponse, HttpServer, Responder, Result};
+use actix_web::{App, HttpResponse, HttpServer, Responder, Result, error, post, web};
 use regex::Regex;
+use std::{fs, path::Path, sync::Mutex};
 
-use rand::{distr::Alphanumeric, Rng};
+use rand::{Rng, distr::Alphanumeric};
 
 mod types;
 use types::*;
 
-const LICENSES_FILE: std::sync::LazyLock<String> = std::sync::LazyLock::new(||{std::env::var("LICENSES_FILE").unwrap_or_else(|_| "./config/licenses.json".to_string())});
-const BANNED_HWIDS_FILE: std::sync::LazyLock<String> = std::sync::LazyLock::new(||{std::env::var("BANNED_HWIDS_FILE").unwrap_or_else(|_| "./config/banned_hwids.json".to_string())});
-const ARCHIVE_FILE: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| std::env::var("ARCHIVE_FILE").unwrap_or_else(|_| "./config/expired_licenses.json".to_string()));
-const LICENSE_REGEX: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(||{regex::Regex::new(r"^[A-Z0-9]{16}").unwrap()});
-const API_KEY: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| std::env::var("API_KEY").unwrap_or_else(|_| "super_secret_key".to_string()));
+const LICENSES_FILE: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+    std::env::var("LICENSES_FILE").unwrap_or_else(|_| "./config/licenses.json".to_string())
+});
+const BANNED_HWIDS_FILE: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+    std::env::var("BANNED_HWIDS_FILE").unwrap_or_else(|_| "./config/banned_hwids.json".to_string())
+});
+const ARCHIVE_FILE: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+    std::env::var("ARCHIVE_FILE").unwrap_or_else(|_| "./config/expired_licenses.json".to_string())
+});
+const LICENSE_REGEX: std::sync::LazyLock<Regex> =
+    std::sync::LazyLock::new(|| regex::Regex::new(r"^[A-Z0-9]{16}").unwrap());
+const API_KEY: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+    std::env::var("API_KEY").unwrap_or_else(|_| "super_secret_key".to_string())
+});
 const LICENSE_REGEN_LIMIT: u32 = 100;
 
 struct State {
@@ -23,7 +32,7 @@ impl State {
     pub fn new() -> Self {
         let licenses = Self::load_licenses().unwrap_or_else(|_| Vec::new());
         let banned_hwids = Self::load_banned_hwids().unwrap_or_else(|_| Vec::new());
-        
+
         Self {
             licenses: Mutex::new(licenses),
             banned_hwids: Mutex::new(banned_hwids),
@@ -41,9 +50,9 @@ impl State {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        let (expired, active): (Vec<License>, Vec<License>) = licenses.into_iter().partition(|license| {
-            license.used && (license.start + license.duration) <= now
-        });
+        let (expired, active): (Vec<License>, Vec<License>) = licenses
+            .into_iter()
+            .partition(|license| license.used && (license.start + license.duration) <= now);
         if !expired.is_empty() {
             let mut archive = if Path::new(&ARCHIVE_FILE.as_str()).exists() {
                 let archive_data = fs::read_to_string(ARCHIVE_FILE.as_str())?;
@@ -98,10 +107,11 @@ impl State {
     }
 }
 
-
-
 #[post("/create-license")]
-async fn create_license(req: web::Json<CreateRequest>, state: web::Data<State>) -> Result<impl Responder> {
+async fn create_license(
+    req: web::Json<CreateRequest>,
+    state: web::Data<State>,
+) -> Result<impl Responder> {
     if req.key != API_KEY.as_str() {
         //fixme
         return Err(error::InternalError::from_response(
@@ -126,8 +136,9 @@ async fn create_license(req: web::Json<CreateRequest>, state: web::Data<State>) 
         if regen_counter > LICENSE_REGEN_LIMIT {
             return Err(error::InternalError::from_response(
                 "Failed to generate a unique license key.",
-                HttpResponse::InternalServerError()
-                    .json(ErrorResponse::new("Failed to generate a unique license key.")),
+                HttpResponse::InternalServerError().json(ErrorResponse::new(
+                    "Failed to generate a unique license key.",
+                )),
             )
             .into());
         }
@@ -148,22 +159,23 @@ async fn create_license(req: web::Json<CreateRequest>, state: web::Data<State>) 
             break;
         }
     }
-    let license = License::new(s.clone()).set_days(req.days);
+    let mut license = License::new(s.clone()).set_days(req.days);
+    license.duration = 10;
     licenses.push(license);
-    
+
     // Save to file after modification
     drop(licenses); // Release the lock before saving
     if let Err(e) = state.save_licenses() {
         eprintln!("Failed to save licenses: {}", e);
     }
-    
+
     Ok(HttpResponse::Created().json(CreateResponse { license: s }))
 }
 
 #[post("/auth")]
 async fn auth(req: web::Json<AuthRequest>, state: web::Data<State>) -> Result<impl Responder> {
     dbg!(&req);
-    
+
     if state
         .banned_hwids
         .lock()
@@ -174,8 +186,6 @@ async fn auth(req: web::Json<AuthRequest>, state: web::Data<State>) -> Result<im
     {
         return Ok(HttpResponse::Unauthorized().json(ErrorResponse::new("Your HWID is banned.")));
     }
-
-    
 
     if !LICENSE_REGEX.is_match(&req.license) {
         return Err(error::InternalError::from_response(
@@ -206,7 +216,8 @@ async fn auth(req: web::Json<AuthRequest>, state: web::Data<State>) -> Result<im
                 save_needed = true;
                 Err(error::InternalError::from_response(
                     "Your license has expired.",
-                    HttpResponse::Unauthorized().json(ErrorResponse::new("Your license has expired.")),
+                    HttpResponse::Unauthorized()
+                        .json(ErrorResponse::new("Your license has expired.")),
                 )
                 .into())
             } else {
@@ -245,24 +256,27 @@ async fn ban_hwid(req: web::Json<HwidRequest>, state: web::Data<State>) -> Resul
         )
         .into());
     }
-    
+
     {
         let mut banned_hwids = state.banned_hwids.lock().unwrap();
         if !banned_hwids.contains(&req.hwid) {
             banned_hwids.push(req.hwid.clone());
         }
     }
-    
+
     // Save to file after modification
     if let Err(e) = state.save_banned_hwids() {
         eprintln!("Failed to save banned HWIDs: {}", e);
     }
-    
+
     Ok(HttpResponse::Ok().json(ErrorResponse::new("HWID banned successfully.")))
 }
 
 #[post("/unban-hwid")]
-async fn unban_hwid(req: web::Json<HwidRequest>, state: web::Data<State>) -> Result<impl Responder> {
+async fn unban_hwid(
+    req: web::Json<HwidRequest>,
+    state: web::Data<State>,
+) -> Result<impl Responder> {
     if req.key != API_KEY.as_str() {
         //fixme
         return Err(error::InternalError::from_response(
@@ -271,7 +285,7 @@ async fn unban_hwid(req: web::Json<HwidRequest>, state: web::Data<State>) -> Res
         )
         .into());
     }
-    
+
     {
         let mut banned_hwids = state.banned_hwids.lock().unwrap();
         dbg!(&banned_hwids);
@@ -281,12 +295,12 @@ async fn unban_hwid(req: web::Json<HwidRequest>, state: web::Data<State>) -> Res
         }
         dbg!(&banned_hwids);
     }
-    
+
     // Save to file after modification
     if let Err(e) = state.save_banned_hwids() {
         eprintln!("Failed to save banned HWIDs: {}", e);
     }
-    
+
     Ok(HttpResponse::Ok().json(ErrorResponse::new("HWID unbanned successfully.")))
 }
 
@@ -300,15 +314,17 @@ async fn main() -> std::io::Result<()> {
     let state = web::Data::new(State::new());
 
     HttpServer::new(move || {
-        let auth_json_config = web::JsonConfig::default().limit(4096).error_handler(|err, _| {
-            error::InternalError::from_response(
-                err,
-                HttpResponse::BadRequest()
-                    .json(ErrorResponse::new("The auth payload was malformed."))
-                    .into(),
-            )
-            .into()
-        });
+        let auth_json_config = web::JsonConfig::default()
+            .limit(4096)
+            .error_handler(|err, _| {
+                error::InternalError::from_response(
+                    err,
+                    HttpResponse::BadRequest()
+                        .json(ErrorResponse::new("The auth payload was malformed."))
+                        .into(),
+                )
+                .into()
+            });
 
         App::new().service(
             web::scope("/api/v1")
