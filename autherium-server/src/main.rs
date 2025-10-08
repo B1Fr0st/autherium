@@ -160,7 +160,6 @@ async fn create_license(
         }
     }
     let mut license = License::new(s.clone()).set_days(req.days);
-    license.duration = 10;
     licenses.push(license);
 
     // Save to file after modification

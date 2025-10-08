@@ -288,9 +288,9 @@ impl eframe::App for MyApp {
                                 .clicked()
                             {
                                 self.load = true;
-                                // if let Err(e) = std::fs::write("license.txt", &self.license) {
-                                //     eprintln!("Failed to write license.txt: {}", e);
-                                // }
+                                if let Err(e) = std::fs::write("license.txt", &self.license) {
+                                    eprintln!("Failed to write license.txt: {}", e);
+                                }
                                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                             }
                         });
