@@ -1,7 +1,5 @@
 use core::f32;
-use eframe::egui::{
-    self, Color32, ImageButton, RichText, Stroke, Style, Vec2, include_image, vec2,
-};
+use eframe::egui::{self, Color32, ImageButton, RichText, Style, Vec2, include_image, vec2};
 use std::sync::mpsc;
 
 #[derive(Default, Debug)]
@@ -109,9 +107,7 @@ impl eframe::App for MyApp {
                     }
                     UiState::LicenseInput => {
                         ctx.style_mut(|s| {
-                            let mut style = Style::default();
-                            let mut visuals = egui::Visuals::default();
-                            style.visuals = visuals;
+                            let style = Style::default();
                             *s = style;
                         });
                         if self.failed_reason.is_empty() {
