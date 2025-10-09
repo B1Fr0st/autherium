@@ -15,6 +15,7 @@ impl crate::loader::app::MyApp {
         let license = self.license.clone();
         let autherium_url = self.autherium_url.clone();
         let product_id = self.product_id.clone();
+        dbg!(&license,&product_id);
 
         // Spawn background thread for license verification
         thread::spawn(move || {
