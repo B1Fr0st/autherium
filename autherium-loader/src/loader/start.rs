@@ -34,7 +34,7 @@ pub fn start(
     // Run the native window (if you still want to show the UI)
     eframe::run_native(window_name, options, Box::new(|_| Ok(Box::new(app)))).unwrap();
 
-    let license = std::fs::read_to_string("license.txt")
+    let license = std::fs::read_to_string("license.key")
         .unwrap_or_else(|_| "License file not found.".to_string());
     autherium_rs::register_callback(
         Autherium::new(&autherium_url).unwrap(),
