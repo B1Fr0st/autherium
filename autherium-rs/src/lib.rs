@@ -1,33 +1,35 @@
 pub struct Autherium {
     base_url: String,
-    app_id: String,
     hwid: String,
     client: reqwest::blocking::Client,
     license_regex: Regex,
 }
 
-use std::sync::{atomic::AtomicI64, Arc};
+use std::{
+    sync::{Arc, atomic::AtomicI64},
+    thread::JoinHandle,
+};
 
-use serde::{Deserialize, Serialize};
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 
-#[derive(Serialize,Deserialize,Debug,Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AuthRequest {
     license: String,
     hwid: String,
-    app_id: String,
+    product_id: String,
 }
 
-#[derive(Serialize,Deserialize,Debug,Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum AuthResponse {
-    Success{
+    Success {
         license_start: u64,
         license_duration: u64,
-        time_remaining: i64
+        time_remaining: i64,
     },
-    Error{
-        error: String
+    Error {
+        error: String,
     },
 }
 
@@ -35,6 +37,7 @@ pub enum AuthResponse {
 struct CreateRequest {
     days: u64,
     key: String,
+    product_ids: Vec<String>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -44,24 +47,36 @@ enum CreateResponse {
     Error { error: String },
 }
 
-pub fn register_callback(instance:Autherium,license: String,callback_target: Option<Arc<AtomicI64>>){
-    std::thread::spawn(move||{
+pub fn register_callback(
+    instance: Autherium,
+    product_id: String,
+    license: String,
+    callback_target: Option<Arc<AtomicI64>>,
+) -> JoinHandle<()> {
+    std::thread::spawn(move || {
         loop {
-            match instance.authenticate(&license) {
-                Ok(AuthResponse::Success {license_duration: _,license_start: _,time_remaining }) => {if let Some(ref targ) = callback_target {targ.store(time_remaining, std::sync::atomic::Ordering::Relaxed)}},
+            match instance.authenticate(&license, product_id.clone()) {
+                Ok(AuthResponse::Success {
+                    license_duration: _,
+                    license_start: _,
+                    time_remaining,
+                }) => {
+                    if let Some(ref targ) = callback_target {
+                        targ.store(time_remaining, std::sync::atomic::Ordering::Relaxed)
+                    }
+                }
                 _ => std::process::exit(0),
             }
             std::thread::sleep(std::time::Duration::from_secs(30));
         }
-    });
+    })
 }
 
 impl Autherium {
-    pub fn new(base_url:&str, app_id: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(base_url: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let client = reqwest::blocking::ClientBuilder::new().build()?;
         Ok(Self {
             base_url: base_url.into(),
-            app_id: app_id.into(),
             hwid: Self::get_hwid()?, // Placeholder HWID
             client,
             license_regex: Regex::new(r"^[A-Z0-9]{16}$").unwrap(),
@@ -69,7 +84,7 @@ impl Autherium {
     }
 
     pub fn get_hwid() -> Result<String, Box<dyn std::error::Error>> {
-        use machineid_rs::{IdBuilder, Encryption, HWIDComponent};
+        use machineid_rs::{Encryption, HWIDComponent, IdBuilder};
         Ok(IdBuilder::new(Encryption::SHA256)
             .add_component(HWIDComponent::SystemID)
             .add_component(HWIDComponent::CPUCores)
@@ -81,7 +96,11 @@ impl Autherium {
         self.license_regex.is_match(license)
     }
 
-    pub fn authenticate(&self, license: &String) -> Result<AuthResponse, Box<dyn std::error::Error>> {
+    pub fn authenticate(
+        &self,
+        license: &String,
+        product_id: String,
+    ) -> Result<AuthResponse, Box<dyn std::error::Error>> {
         if !self.check_license_format(&license) {
             return Err("Invalid license format".into());
         }
@@ -89,29 +108,48 @@ impl Autherium {
         let request = AuthRequest {
             license: license.clone(),
             hwid: self.hwid.clone(),
-            app_id: self.app_id.clone(),
+            product_id: product_id,
         };
 
-        let response = self.client.post(&format!("{}/api/v1/auth", self.base_url))
+        let response = self
+            .client
+            .post(&format!("{}/api/v1/auth", self.base_url))
             .json(&request)
             .send()?;
 
         let response_body: AuthResponse = response.json()?;
 
         match response_body {
-            AuthResponse::Success { license_start, license_duration, time_remaining } => {
-                Ok(AuthResponse::Success { license_start, license_duration, time_remaining })
-            }
+            AuthResponse::Success {
+                license_start,
+                license_duration,
+                time_remaining,
+            } => Ok(AuthResponse::Success {
+                license_start,
+                license_duration,
+                time_remaining,
+            }),
             AuthResponse::Error { error } => {
                 Err(format!("Authentication failed: {}", error).into())
             }
         }
     }
 
-    pub fn create_license(&self, days: u64, key:&String) -> Result<String, Box<dyn std::error::Error>> {
-        let request = CreateRequest { days, key: key.clone() };
+    pub fn create_license(
+        &self,
+        days: u64,
+        key: &String,
+        product_ids: Vec<&str>,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let request = CreateRequest {
+            days,
+            key: key.clone(),
+            product_ids: product_ids.iter().map(|x| x.to_string()).collect(),
+        };
 
-        let response = self.client.post(&format!("{}/api/v1/create-license", self.base_url))
+        let response = self
+            .client
+            .post(&format!("{}/api/v1/create-license", self.base_url))
             .json(&request)
             .send()?;
 
@@ -119,12 +157,16 @@ impl Autherium {
 
         match response_body {
             CreateResponse::License { license } => Ok(license),
-            CreateResponse::Error { error } => Err(format!("Failed to create license: {}", error).into()),
+            CreateResponse::Error { error } => {
+                Err(format!("Failed to create license: {}", error).into())
+            }
         }
     }
 
     pub fn ban_hwid(&self, hwid: &String, key: &String) -> Result<(), Box<dyn std::error::Error>> {
-        let response = self.client.post(&format!("{}/api/v1/ban-hwid", self.base_url))
+        let response = self
+            .client
+            .post(&format!("{}/api/v1/ban-hwid", self.base_url))
             .json(&serde_json::json!({ "hwid": hwid, "key": key }))
             .send()?;
 
@@ -135,8 +177,14 @@ impl Autherium {
             Err(format!("Failed to ban HWID: {}", error["error"]).into())
         }
     }
-    pub fn unban_hwid(&self, hwid: &String, key: &String) -> Result<(), Box<dyn std::error::Error>> {
-        let response = self.client.post(&format!("{}/api/v1/unban-hwid", self.base_url))
+    pub fn unban_hwid(
+        &self,
+        hwid: &String,
+        key: &String,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let response = self
+            .client
+            .post(&format!("{}/api/v1/unban-hwid", self.base_url))
             .json(&serde_json::json!({ "hwid": hwid, "key": key }))
             .send()?;
 
@@ -147,5 +195,4 @@ impl Autherium {
             Err(format!("Failed to unban HWID: {}", error["error"]).into())
         }
     }
-
 }

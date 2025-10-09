@@ -1,6 +1,6 @@
 use core::f32;
 use eframe::egui::{
-    self, Color32, ImageButton, Pos2, Rect, RichText, Stroke, Style, Vec2, include_image, vec2,
+    self, Color32, ImageButton, RichText, Stroke, Style, Vec2, include_image, vec2,
 };
 use std::sync::mpsc;
 
@@ -15,6 +15,9 @@ pub(crate) struct MyApp {
     // Channel for async license verification
     pub license_receiver: Option<mpsc::Receiver<LicenseResult>>,
     pub autherium_url: String,
+    pub product_id: String,
+    pub discord_url: String,
+    pub website_url: String,
 }
 #[derive(Default, PartialEq, Debug)]
 pub enum UiState {
@@ -30,42 +33,6 @@ pub enum UiState {
 pub enum LicenseResult {
     Success(u64, u64),
     Error(String),
-}
-
-fn hsv_to_color32(h: f32, s: f32, v: f32) -> Color32 {
-    let c = v * s; // Chroma
-    let h_prime = h / 60.0;
-    let x = c * (1.0 - ((h_prime % 2.0) - 1.0).abs());
-    let m = v - c;
-
-    let (r_prime, g_prime, b_prime) = if h_prime >= 0.0 && h_prime < 1.0 {
-        (c, x, 0.0)
-    } else if h_prime >= 1.0 && h_prime < 2.0 {
-        (x, c, 0.0)
-    } else if h_prime >= 2.0 && h_prime < 3.0 {
-        (0.0, c, x)
-    } else if h_prime >= 3.0 && h_prime < 4.0 {
-        (0.0, x, c)
-    } else if h_prime >= 4.0 && h_prime < 5.0 {
-        (x, 0.0, c)
-    } else if h_prime >= 5.0 && h_prime < 6.0 {
-        (c, 0.0, x)
-    } else {
-        (0.0, 0.0, 0.0) // Fallback for invalid hue
-    };
-
-    // Convert to 0-255 range
-    let r = ((r_prime + m) * 255.0).round() as u8;
-    let g = ((g_prime + m) * 255.0).round() as u8;
-    let b = ((b_prime + m) * 255.0).round() as u8;
-
-    Color32::from_rgb(r, g, b)
-}
-
-impl MyApp {
-    fn color_cycle(&self) -> Color32 {
-        hsv_to_color32(self.frame as f32 % 360.0, 1.0, 1.0)
-    }
 }
 
 impl eframe::App for MyApp {
@@ -94,14 +61,17 @@ impl eframe::App for MyApp {
             color: Color32::BLACK,
         };
 
-        visuals.widgets.hovered.bg_stroke = Stroke::new(0.1, Color32::BLACK);
-        visuals.widgets.active.bg_stroke = Stroke::new(0.1, Color32::BLACK);
-        visuals.widgets.inactive.bg_stroke = Stroke::new(0.1, Color32::BLACK);
+        // visuals.widgets.hovered.bg_stroke = Stroke::NONE;
+        // visuals.widgets.hovered.fg_stroke = Stroke::NONE;
+        // visuals.widgets.active.bg_stroke = Stroke::NONE;
+        // visuals.widgets.active.fg_stroke = Stroke::NONE;
+        // visuals.widgets.inactive.bg_stroke = Stroke::NONE;
+        // visuals.widgets.inactive.fg_stroke = Stroke::NONE;
 
         visuals.widgets.hovered.weak_bg_fill = Color32::from_rgb(110, 0, 0);
         visuals.widgets.inactive.weak_bg_fill = Color32::from_rgb(32, 16, 16);
 
-        visuals.extreme_bg_color = Color32::BLACK;
+        visuals.extreme_bg_color = Color32::from_rgba_unmultiplied(255, 255, 255, 25);
 
         visuals.panel_fill = Color32::BLACK;
 
@@ -138,9 +108,14 @@ impl eframe::App for MyApp {
                         });
                     }
                     UiState::LicenseInput => {
-                        ctx.style_mut(|s| *s = Style::default());
+                        ctx.style_mut(|s| {
+                            let mut style = Style::default();
+                            let mut visuals = egui::Visuals::default();
+                            style.visuals = visuals;
+                            *s = style;
+                        });
                         if self.failed_reason.is_empty() {
-                            if let Ok(license) = std::fs::read_to_string("license.txt") {
+                            if let Ok(license) = std::fs::read_to_string("license.key") {
                                 self.license = license;
                             }
                         }
@@ -178,12 +153,13 @@ impl eframe::App for MyApp {
                                 ui.add(text_edit);
                                 self.license = self.license.trim().to_string();
                                 if !self.license.is_empty() && !self.license_regex() {
-                                    self.failed_reason = String::new();
-                                    ui.label(
-                                        RichText::new("License not in correct format!")
-                                            .size(16.0)
-                                            .color(Color32::LIGHT_RED),
-                                    );
+                                    self.failed_reason =
+                                        "License not in correct format!".to_string();
+                                }
+                                if self.license.is_empty()
+                                    && self.failed_reason == "License not in correct format!"
+                                {
+                                    self.failed_reason.clear();
                                 }
                                 ui.add_space(35.0);
                                 ui.horizontal(|ui| {
@@ -199,7 +175,9 @@ impl eframe::App for MyApp {
                                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                     }
                                     if discord.clicked() {
-                                        ctx.open_url(egui::OpenUrl::new_tab("https://google.com"));
+                                        ctx.open_url(egui::OpenUrl::new_tab(
+                                            self.discord_url.clone(),
+                                        ));
                                     }
                                     ui.add_space(50.0);
                                     let website = ui.add_sized(
@@ -213,7 +191,9 @@ impl eframe::App for MyApp {
                                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                     }
                                     if website.clicked() {
-                                        ctx.open_url(egui::OpenUrl::new_tab("https://google.com"));
+                                        ctx.open_url(egui::OpenUrl::new_tab(
+                                            self.website_url.clone(),
+                                        ));
                                     }
                                 });
                             });
@@ -288,8 +268,8 @@ impl eframe::App for MyApp {
                                 .clicked()
                             {
                                 self.load = true;
-                                if let Err(e) = std::fs::write("license.txt", &self.license) {
-                                    eprintln!("Failed to write license.txt: {}", e);
+                                if let Err(e) = std::fs::write("license.key", &self.license) {
+                                    eprintln!("Failed to write license.key: {}", e);
                                 }
                                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                             }

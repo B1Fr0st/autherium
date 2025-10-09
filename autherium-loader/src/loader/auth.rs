@@ -1,17 +1,8 @@
 use crate::loader::app::*;
 use autherium_rs::AuthResponse;
 use regex::Regex;
+use std::sync::mpsc;
 use std::thread;
-use std::{sync::mpsc, time};
-
-use serde::{Deserialize, Serialize};
-
-#[derive(Serialize)]
-struct AuthRequest {
-    license: String,
-    hwid: String,
-    app_id: String,
-}
 
 impl crate::loader::app::MyApp {
     pub fn verify_license_async(&mut self) {
@@ -22,19 +13,20 @@ impl crate::loader::app::MyApp {
         self.license_receiver = Some(rx);
 
         let license = self.license.clone();
+        let autherium_url = self.autherium_url.clone();
+        let product_id = self.product_id.clone();
 
         // Spawn background thread for license verification
         thread::spawn(move || {
-            let autherium =
-                autherium_rs::Autherium::new("http://localhost:8080", "app_id").unwrap();
-            match autherium.authenticate(&license) {
+            let autherium = autherium_rs::Autherium::new(&autherium_url).unwrap();
+            match autherium.authenticate(&license, product_id) {
                 Ok(response) => match response {
                     AuthResponse::Success {
                         license_start,
                         license_duration,
-                        time_remaining,
+                        time_remaining: _,
                     } => {
-                        tx.send(LicenseResult::Success(license_start, license_duration));
+                        let _ = tx.send(LicenseResult::Success(license_start, license_duration));
                         return;
                     }
                     AuthResponse::Error { error } => {
@@ -42,7 +34,7 @@ impl crate::loader::app::MyApp {
                         return;
                     }
                 },
-                Err(e) => {
+                Err(_) => {
                     tx.send(LicenseResult::Error("Failed to authenticate!".to_string()))
                         .unwrap();
                     return;

@@ -159,7 +159,7 @@ async fn create_license(
             break;
         }
     }
-    let mut license = License::new(s.clone()).set_days(req.days);
+    let license = License::new(s.clone(), &req.product_ids).set_days(req.days);
     licenses.push(license);
 
     // Save to file after modification
@@ -197,7 +197,10 @@ async fn auth(req: web::Json<AuthRequest>, state: web::Data<State>) -> Result<im
     let mut save_needed = false;
     let result = {
         let mut licenses = state.licenses.lock().unwrap();
-        if let Some(license) = licenses.iter_mut().find(|entry| entry.key == req.license) {
+        if let Some(license) = licenses
+            .iter_mut()
+            .find(|entry| entry.key == req.license && entry.product_ids.contains(&req.product_id))
+        {
             if !license.used {
                 license.start();
                 save_needed = true;

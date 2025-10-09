@@ -1,10 +1,15 @@
-use std::{sync::{atomic::AtomicI64, Arc}, thread::JoinHandle};
+use std::sync::{Arc, atomic::AtomicI64};
 
 use autherium_rs::Autherium;
 
-
-
-pub fn start(callback_target: Option<Arc<AtomicI64>>){
+pub fn start(
+    window_name: &str,
+    autherium_url: &str,
+    product_id: &str,
+    discord_url: &str,
+    website_url: &str,
+    callback_target: Option<Arc<AtomicI64>>,
+) {
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_inner_size([520.0, 240.0])
@@ -16,47 +21,56 @@ pub fn start(callback_target: Option<Arc<AtomicI64>>){
         centered: true,
         ..Default::default()
     };
-    
+
     // Create the MyApp instance
     let app = crate::loader::app::MyApp {
-        autherium_url: "http://localhost:8080".into(),
+        autherium_url: autherium_url.to_string(),
+        product_id: product_id.to_string(),
+        discord_url: discord_url.to_string(),
+        website_url: website_url.to_string(),
         ..Default::default()
     };
 
-    
-
     // Run the native window (if you still want to show the UI)
-    eframe::run_native(
-        "Replace me!!!!!!!",
-        options,
-        Box::new(|_| Ok(Box::new(app))),
-    ).unwrap();
+    eframe::run_native(window_name, options, Box::new(|_| Ok(Box::new(app)))).unwrap();
 
-    let license = std::fs::read_to_string("license.txt").unwrap_or_else(|_| "License file not found.".to_string());
-    autherium_rs::register_callback(Autherium::new("http://localhost:8080","app_id").unwrap(), license, callback_target);
+    let license = std::fs::read_to_string("license.txt")
+        .unwrap_or_else(|_| "License file not found.".to_string());
+    if autherium_rs::register_callback(
+        Autherium::new(&autherium_url).unwrap(),
+        product_id.into(),
+        license,
+        callback_target,
+    )
+    .is_finished()
+        == true
+    {
+        std::process::exit(1);
+    }
 }
 
-pub fn error(e:&str){
-
+pub fn error(window_name: &str, e: &str) {
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
-        .with_inner_size([320.0, 240.0])
-        .with_decorations(false)
-        .with_active(true)
-        .with_taskbar(true)
-        .with_transparent(true)
-        ,//.with_icon(IconData::default()),
+            .with_inner_size([320.0, 240.0])
+            .with_decorations(false)
+            .with_active(true)
+            .with_taskbar(true)
+            .with_transparent(true), //.with_icon(IconData::default()),
         centered: true,
         ..Default::default()
     };
     eframe::run_native(
-        "Replace me!!!!!!!",
+        window_name,
         options,
-        Box::new(|_cc| Ok({
-            let mut app = Box::<crate::loader::app::MyApp>::default();
-            app.ui_state = crate::loader::app::UiState::Error;
-            app.failed_reason = e.to_string();
-            app
-        })),
-    ).unwrap();
+        Box::new(|_cc| {
+            Ok({
+                let mut app = Box::<crate::loader::app::MyApp>::default();
+                app.ui_state = crate::loader::app::UiState::Error;
+                app.failed_reason = e.to_string();
+                app
+            })
+        }),
+    )
+    .unwrap();
 }

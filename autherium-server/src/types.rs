@@ -1,9 +1,9 @@
-use serde_derive::{Serialize, Deserialize};
-
+use serde_derive::{Deserialize, Serialize};
 
 #[derive(Deserialize, Debug)]
 pub struct AuthRequest {
     pub license: String,
+    pub product_id: String,
     pub hwid: String,
 }
 
@@ -18,6 +18,7 @@ pub struct AuthResponse {
 pub struct CreateRequest {
     pub days: u64,
     pub key: String,
+    pub product_ids: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -50,15 +51,17 @@ pub struct License {
     pub used: bool,
     pub start: u64,
     pub duration: u64,
+    pub product_ids: Vec<String>,
 }
 
 impl License {
-    pub fn new(key: String) -> Self {
+    pub fn new(key: String, product_ids: &Vec<String>) -> Self {
         Self {
             key,
             used: false,
             start: 0,
             duration: 0,
+            product_ids: product_ids.clone(),
         }
     }
 
