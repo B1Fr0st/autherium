@@ -36,17 +36,12 @@ pub fn start(
 
     let license = std::fs::read_to_string("license.txt")
         .unwrap_or_else(|_| "License file not found.".to_string());
-    if autherium_rs::register_callback(
+    autherium_rs::register_callback(
         Autherium::new(&autherium_url).unwrap(),
         product_id.into(),
         license,
         callback_target,
-    )
-    .is_finished()
-        == true
-    {
-        std::process::exit(1);
-    }
+    );
 }
 
 pub fn error(window_name: &str, e: &str) {
